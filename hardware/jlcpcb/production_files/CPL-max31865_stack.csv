@@ -1,0 +1,27 @@
+Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
+C1,100n,C_0603_1608Metric,147.32,-63.42,180.0,bottom
+C2,47u,C_Radial_D5.0mm_H7.0mm_P2.00mm,166.717107,-74.547107,135.0,top
+IC1,MAX31865,Adafruit_MAX31865,52.1,-55.781,0.0,top
+IC2,MAX31865,Adafruit_MAX31865,80.800001,-55.781,0.0,top
+IC3,MAX31865,Adafruit_MAX31865,109.500001,-55.781,0.0,top
+IC4,MAX31865,Adafruit_MAX31865,138.200001,-55.781,0.0,top
+IC5,MAX31865,Adafruit_MAX31865,166.9,-55.781,0.0,top
+IC6,MAX31865,Adafruit_MAX31865,195.600001,-55.781,0.0,top
+IC7,MAX31865,Adafruit_MAX31865,224.299998,-55.781,0.0,top
+IC8,MAX31865,Adafruit_MAX31865,252.999999,-55.781,0.0,top
+J1,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",52.1,-38.23,180.0,top
+J10,Conn_01x08_Pin,PinHeader_1x08_P2.54mm_Vertical,123.85,-74.18,90.0,top
+J2,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",80.8,-38.23,180.0,top
+J3,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",109.5,-38.23,180.0,top
+J4,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",138.2,-38.23,180.0,top
+J5,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",166.9,-38.23,180.0,top
+J6,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",195.6,-38.23,180.0,top
+J7,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",224.3,-38.23,180.0,top
+J8,Conn_01x04_Pin,"PhoenixContact_MSTBA_2,5_4-G-5,08_1x04_P5.08mm_Horizontal",253.0,-38.23,180.0,top
+J9,Conn_01x08_Pin,PinHeader_1x08_P2.54mm_Vertical,152.549999,-74.18,90.0,top
+R1,10k,R_0603_1608Metric,136.38,-60.705,90.0,bottom
+R2,10k,R_0603_1608Metric,139.24,-60.705,90.0,bottom
+R3,10k,R_0603_1608Metric,142.1,-60.705,90.0,bottom
+R4,4.7k,R_0603_1608Metric,161.8,-56.04,0.0,bottom
+R5,4.7k,R_0603_1608Metric,161.8,-54.3,0.0,bottom
+U1,PCF8574T,SOIC-16W_7.5x10.3mm_P1.27mm,152.5575,-56.09,270.0,bottom
