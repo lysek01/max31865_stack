@@ -7,13 +7,13 @@ import spidev
 
 
 # ============================================================
-# NASTAVENÍ
+# CONFIGURATION
 # ============================================================
 
 I2C_BUS = 1
 
-# PCF8574 typicky 0x20–0x27.
-# Ty máš aktuálně 0x25, 0x26, 0x27.
+# PCF8574 typically uses 0x20-0x27.
+# Currently installed: 0x25, 0x26, 0x27.
 PCF_SCAN_ADDRESSES = range(0x20, 0x28)
 
 SPI_BUS = 0
@@ -21,38 +21,38 @@ SPI_DEVICE = 0
 SPI_SPEED_HZ = 100_000
 SPI_MODE = 1
 
-# MAX31865 / RTD nastavení
+# MAX31865 / RTD settings
 THREE_WIRE = True
 FILTER_50HZ = True
 
-# PT100 = 100.0
+# PT100  = 100.0
 # PT1000 = 1000.0
 RNOMINAL = 100.0
 
-# PT100 MAX31865 modul typicky 430 Ω
-# PT1000 MAX31865 modul typicky 4300 Ω
+# PT100  MAX31865 module typically uses 430 ohm reference
+# PT1000 MAX31865 module typically uses 4300 ohm reference
 DEFAULT_RREF = 430.0
 
-# Výpis měření
+# Measurement print interval (seconds)
 PRINT_INTERVAL = 1.0
 
-# Zahodit první scany po startu continuous režimu
+# Discard the first N scans after entering continuous mode
 WARMUP_SCANS = 3
 
-# Automaticky čistit fault bity.
-# Důležité hlavně při přepojování čidel za běhu.
+# Automatically clear latched fault bits.
+# Important mainly when sensors are hot-swapped during operation.
 AUTO_CLEAR_FAULTS = True
 
-# Pokud je True, vypisují se všechny nalezené MAX31865 moduly,
-# i když nemají připojené čidlo.
+# If True, every detected MAX31865 module is printed,
+# even when no sensor is connected to it.
 SHOW_FAILED_CHANNELS = True
 
-# Pokud chceš vypisovat jen OK kanály, dej:
+# To print only healthy channels, set:
 # SHOW_FAILED_CHANNELS = False
 
 
 # ============================================================
-# MAX31865 REGISTRY
+# MAX31865 REGISTERS
 # ============================================================
 
 REG_CONFIG = 0x00
@@ -71,9 +71,13 @@ CONFIG_3WIRE = 0x10
 CONFIG_FAULT_CLEAR = 0x02
 CONFIG_FILTER_50HZ = 0x01
 
+# Raw RTD ADC code (15-bit) above which the reading is treated as
+# saturated / invalid (close to full scale = open or shorted input).
+RAW_NEAR_MAX = 32760
+
 
 # ============================================================
-# POMOCNÉ FUNKCE
+# HELPERS
 # ============================================================
 
 def config_base():
@@ -101,9 +105,9 @@ def decode_fault(fault):
     if fault & 0x20:
         messages.append("REFIN- > 0.85 x VBIAS")
     if fault & 0x10:
-        messages.append("REFIN- < 0.85 x VBIAS / FORCE open")
+        messages.append("REFIN- < 0.85 x VBIAS AND FORCE- open")
     if fault & 0x08:
-        messages.append("RTDIN- < 0.85 x VBIAS / FORCE open")
+        messages.append("RTDIN- < 0.85 x VBIAS AND FORCE- open")
     if fault & 0x04:
         messages.append("over/under voltage")
 
@@ -115,7 +119,8 @@ def decode_fault(fault):
 
 def resistance_to_temperature_celsius(rtd_resistance, rnominal=100.0):
     """
-    Přepočet odporu PT100/PT1000 na teplotu podle Callendar-Van Dusen.
+    Convert PT100/PT1000 resistance to temperature using
+    the Callendar-Van Dusen equation.
     """
 
     a = 3.9083e-3
@@ -123,13 +128,14 @@ def resistance_to_temperature_celsius(rtd_resistance, rnominal=100.0):
 
     discriminant = a * a - 4 * b * (1 - rtd_resistance / rnominal)
 
-    # Pro teploty >= 0 °C
+    # Analytical branch for t >= 0 C
     if discriminant >= 0:
         temp = (-a + math.sqrt(discriminant)) / (2 * b)
         if temp >= 0:
             return temp
 
-    # Pro záporné teploty přibližně -200 až 0 °C
+    # Bisection branch for the sub-zero range (approx -200 to 0 C).
+    # Uses the full 4-coefficient CVD form including the C term.
     low = -200.0
     high = 0.0
 
@@ -152,7 +158,7 @@ def resistance_to_temperature_celsius(rtd_resistance, rnominal=100.0):
 
 
 # ============================================================
-# MULTI PCF8574 CS ŘÍZENÍ
+# MULTI PCF8574 CS CONTROL
 # ============================================================
 
 class MultiPCF8574CS:
@@ -166,8 +172,8 @@ class MultiPCF8574CS:
 
     def select(self, expander_addr, pin):
         """
-        Na všech expanderech nastaví všechny výstupy HIGH.
-        Na cílovém expanderu stáhne jeden pin LOW.
+        Drive every output HIGH on every expander, then pull the selected
+        pin LOW on the target expander (active-low chip select).
         """
 
         for addr in self.addresses:
@@ -180,8 +186,8 @@ class MultiPCF8574CS:
 
     def transfer(self, spi, expander_addr, pin, data):
         """
-        Jedna SPI transakce:
-        všechny CS HIGH -> jeden CS LOW -> SPI transfer -> všechny CS HIGH
+        Perform one SPI transaction:
+        all CS HIGH -> selected CS LOW -> SPI transfer -> all CS HIGH.
         """
 
         self.select(expander_addr, pin)
@@ -197,7 +203,7 @@ class MultiPCF8574CS:
 
 
 # ============================================================
-# MAX31865 SYSTÉM
+# MAX31865 SYSTEM
 # ============================================================
 
 class MAX31865MultiSystem:
@@ -227,8 +233,8 @@ class MAX31865MultiSystem:
 
     def set_fault_thresholds(self, expander_addr, pin):
         """
-        Nastavení thresholdů na celý rozsah.
-        Tím threshold registry samy nezpůsobují falešné high/low chyby.
+        Set thresholds to full range so the threshold registers themselves
+        cannot cause spurious high/low fault flags.
         """
 
         self.write_register(expander_addr, pin, REG_HIGH_FAULT_MSB, 0xFF)
@@ -238,11 +244,12 @@ class MAX31865MultiSystem:
 
     def clear_faults(self, expander_addr, pin, keep_continuous=False):
         """
-        Vyčistí latched fault bity.
+        Clear the latched fault bits.
 
-        Pokud keep_continuous=True, zachová/znovu zapne auto-conversion režim.
-        To je důležité, protože samotný CONFIG_FAULT_CLEAR zápis by jinak
-        mohl continuous režim vypnout.
+        With keep_continuous=True the auto-conversion mode is preserved
+        (re-asserted in the same write). This matters because a bare
+        CONFIG_FAULT_CLEAR write would otherwise drop the device out of
+        continuous mode.
         """
 
         cfg = config_base() | CONFIG_FAULT_CLEAR
@@ -259,10 +266,12 @@ class MAX31865MultiSystem:
 
     def check_max31865_present(self, expander_addr, pin):
         """
-        MAX31865 nemá WHOAMI registr.
-        Ověřujeme:
-        1) zápis/čtení CONFIG registru
-        2) zápis/čtení markeru do threshold registrů
+        MAX31865 has no WHOAMI register, so presence is verified by:
+        1) writing and reading back the CONFIG register
+        2) writing and reading back a marker in the threshold registers
+
+        Note: bit D0 of the High Fault Threshold LSB is don't-care and
+        reads back as 0, so it is masked out of the comparison.
         """
 
         expected_cfg = config_base()
@@ -279,7 +288,9 @@ class MAX31865MultiSystem:
             )
 
         marker_a = 0xA0 | (pin & 0x0F)
-        marker_b = 0x50 | (pin & 0x0F)
+        # LSB bit D0 is don't-care in MAX31865 threshold LSB registers,
+        # so force it to 0 to keep the round-trip comparison stable.
+        marker_b = (0x50 | (pin & 0x0F)) & 0xFE
 
         self.write_register(expander_addr, pin, REG_HIGH_FAULT_MSB, marker_a)
         self.write_register(expander_addr, pin, REG_HIGH_FAULT_LSB, marker_b)
@@ -291,7 +302,7 @@ class MAX31865MultiSystem:
             2,
         )
 
-        if read_marker[0] != marker_a or read_marker[1] != marker_b:
+        if read_marker[0] != marker_a or (read_marker[1] & 0xFE) != marker_b:
             return (
                 False,
                 f"marker mismatch expected=0x{marker_a:02X} 0x{marker_b:02X}, "
@@ -305,7 +316,7 @@ class MAX31865MultiSystem:
 
     def start_continuous(self, expander_addr, pin):
         """
-        Zapne continuous / auto-conversion režim.
+        Enable continuous / auto-conversion mode.
         """
 
         self.set_fault_thresholds(expander_addr, pin)
@@ -321,7 +332,7 @@ class MAX31865MultiSystem:
 
     def stop_continuous(self, expander_addr, pin):
         """
-        Vypne continuous režim, bias nechá zapnutý podle config_base().
+        Disable continuous mode; VBIAS stays on as defined by config_base().
         """
 
         self.write_register(
@@ -337,8 +348,7 @@ class MAX31865MultiSystem:
         msb = data[0]
         lsb = data[1]
 
-        raw16 = (msb << 8) | lsb
-        raw15 = raw16 >> 1
+        raw15 = ((msb << 8) | lsb) >> 1
         fault_bit = lsb & 0x01
 
         fault = 0x00
@@ -354,8 +364,8 @@ class MAX31865MultiSystem:
 
         raw15, fault = self.read_raw_and_fault(expander_addr, pin)
 
-        # Pokud se objeví fault, vyčistíme ho a zároveň zachováme continuous režim.
-        # Pak krátce počkáme a přečteme hodnotu znovu.
+        # On fault: clear it while preserving continuous mode,
+        # wait briefly, then re-read.
         if AUTO_CLEAR_FAULTS and fault:
             self.clear_faults(expander_addr, pin, keep_continuous=True)
             time.sleep(0.1)
@@ -377,17 +387,17 @@ class MAX31865MultiSystem:
                 "ok": False,
                 "raw": raw15,
                 "fault": 0x00,
-                "reason": "raw=0",
+                "reason": "raw=0 (RTD disconnected?)",
                 "resistance": None,
                 "temperature": None,
             }
 
-        if raw15 >= 32760:
+        if raw15 >= RAW_NEAR_MAX:
             return {
                 "ok": False,
                 "raw": raw15,
                 "fault": 0x00,
-                "reason": "raw skoro maximum",
+                "reason": "raw near maximum",
                 "resistance": None,
                 "temperature": None,
             }
@@ -406,38 +416,38 @@ class MAX31865MultiSystem:
 
 
 # ============================================================
-# DETEKCE I2C EXPANDERŮ
+# I2C EXPANDER DETECTION
 # ============================================================
 
 def scan_pcf8574(i2c):
     found = []
 
-    print("Skenuji PCF8574 expandery...")
+    print("Scanning for PCF8574 expanders...")
 
     for addr in PCF_SCAN_ADDRESSES:
         try:
             i2c.read_byte(addr)
             found.append(addr)
-            print(f"  nalezen expander: 0x{addr:02X}")
+            print(f"  expander found: 0x{addr:02X}")
         except OSError:
             pass
 
     if not found:
-        print("  nenalezen žádný PCF8574 expander")
+        print("  no PCF8574 expander found")
 
     print()
     return found
 
 
 # ============================================================
-# DETEKCE MAX31865 MODULŮ
+# MAX31865 MODULE DETECTION
 # ============================================================
 
 def detect_max31865_modules(system, expander_addresses):
     modules = []
     logical_index = 0
 
-    print("Detekuji MAX31865 moduly za jednotlivými CS piny...")
+    print("Detecting MAX31865 modules behind each CS pin...")
 
     for expander_addr in expander_addresses:
         print(f"Expander 0x{expander_addr:02X}:")
@@ -462,12 +472,12 @@ def detect_max31865_modules(system, expander_addresses):
                     print(f"  P{pin}: ---             {msg}")
 
             except Exception as e:
-                print(f"  P{pin}: ---             chyba: {e}")
+                print(f"  P{pin}: ---             read error: {e}")
 
     print()
 
     if modules:
-        print("Nalezené MAX31865 moduly:")
+        print("Detected MAX31865 modules:")
         for m in modules:
             print(
                 f"  CH{m['index']:02d}: "
@@ -477,14 +487,14 @@ def detect_max31865_modules(system, expander_addresses):
                 f"RREF={m['rref']}"
             )
     else:
-        print("Nebyl nalezen žádný MAX31865 modul.")
+        print("No MAX31865 module detected.")
 
     print()
     return modules
 
 
 # ============================================================
-# VÝPIS MĚŘENÍ
+# MEASUREMENT OUTPUT
 # ============================================================
 
 def print_measurement_row(module, result):
@@ -493,8 +503,8 @@ def print_measurement_row(module, result):
     if result["ok"]:
         print(
             f"{label}: OK      "
-            f"{result['temperature']:8.3f} °C   "
-            f"R={result['resistance']:9.3f} Ω   "
+            f"{result['temperature']:8.3f} C   "
+            f"R={result['resistance']:9.3f} Ohm   "
             f"raw={result['raw']}"
         )
     else:
@@ -519,8 +529,8 @@ def main():
     print(f"SPI mode:      {SPI_MODE}")
     print(f"3-wire:        {THREE_WIRE}")
     print(f"50Hz filter:   {FILTER_50HZ}")
-    print(f"RNOMINAL:      {RNOMINAL} Ω")
-    print(f"default RREF:  {DEFAULT_RREF} Ω")
+    print(f"RNOMINAL:      {RNOMINAL} Ohm")
+    print(f"default RREF:  {DEFAULT_RREF} Ohm")
     print()
 
     with smbus2.SMBus(I2C_BUS) as i2c:
@@ -531,7 +541,7 @@ def main():
 
         cs = MultiPCF8574CS(i2c, expander_addresses)
 
-        # Bezpečný výchozí stav: všechny CS HIGH.
+        # Safe default state: drive all CS lines HIGH.
         cs.all_high()
 
         spi = spidev.SpiDev()
@@ -550,7 +560,7 @@ def main():
             if not modules:
                 return
 
-            print("Zapínám continuous režim na nalezených modulech...")
+            print("Starting continuous mode on detected modules...")
             for module in modules:
                 system.start_continuous(
                     module["expander_addr"],
@@ -559,14 +569,14 @@ def main():
 
             time.sleep(0.3)
 
-            print("Zahazuji první warmup scany...")
+            print("Discarding warmup scans...")
             for _ in range(WARMUP_SCANS):
                 for module in modules:
                     system.read_channel(module)
                 time.sleep(0.05)
 
             print()
-            print("Start měření.")
+            print("Measurement started.")
             print()
 
             while True:
@@ -594,7 +604,7 @@ def main():
                         if SHOW_FAILED_CHANNELS:
                             print(
                                 f"CH{module['index']:02d} {module['name']}: "
-                                f"NOT OK  chyba čtení: {e}"
+                                f"NOT OK  read error: {e}"
                             )
 
                 scan_time = time.perf_counter() - scan_start
@@ -609,7 +619,7 @@ def main():
 
         finally:
             print()
-            print("Vypínám continuous režim a nastavuji všechny CS HIGH...")
+            print("Stopping continuous mode and driving all CS lines HIGH...")
 
             for module in modules:
                 try:
