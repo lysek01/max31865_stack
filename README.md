@@ -129,6 +129,55 @@ configure 2-, 3- or 4-wire mode.
 > Mixing PT1000 sensors with the default 430 Ω reference (or vice versa)
 > will not work correctly.
 
+## Connecting to a Raspberry Pi
+
+The bottom board of the stack carries an **8-pin JST XH connector (J1)**
+that links the whole stack to the Raspberry Pi. Each pin of the connector is
+labelled on the board's silkscreen — wire each labelled signal to the
+matching Raspberry Pi GPIO header pin according to the table below.
+
+The diagram below highlights the relevant pin groups on the 40-pin header:
+the **I²C** group (SDA / SCL) and the **SPI** group (MOSI / MISO / SCLK,
+together with the 3V3 and GND pins that are convenient to use for powering
+the stack).
+
+<p align="center">
+  <img src="assets/wiring.png" alt="Raspberry Pi 40-pin GPIO header with the I2C and SPI pin groups highlighted" width="600">
+</p>
+
+Counting from the **left edge** of the JST XH connector (pin 1) to the
+right (pin 8):
+
+| JST pin | Silkscreen   | Function                | RPi physical pin | RPi BCM GPIO |
+|:-------:|:------------:|:------------------------|:----------------:|:------------:|
+| 1       | `GND`        | Ground                  | 6                | —            |
+| 2       | `GND`        | Ground (redundant)      | any GND          | —            |
+| 3       | `SDA`        | I²C data (PCF8574)      | 3                | GPIO 2       |
+| 4       | `SCL`        | I²C clock (PCF8574)     | 5                | GPIO 3       |
+| 5       | `MOSI`       | SPI MOSI (MAX31865)     | 19               | GPIO 10      |
+| 6       | `MISO`       | SPI MISO (MAX31865)     | 21               | GPIO 9       |
+| 7       | `CLK`        | SPI clock (MAX31865)    | 23               | GPIO 11      |
+| 8       | `VCC`        | Logic supply            | 1 (3V3)          | —            |
+
+Both `GND` pins on the connector (pins 1 and 2) are tied to the same ground
+net on the board. In practice you only need to wire one of them on your
+cable — the other can be left unconnected or used as a spare.
+
+> ℹ️ The Adafruit MAX31865 breakout accepts 3 V–5 V on `VIN`, but its logic
+> level must match `VIN`. When wiring to a Raspberry Pi (3.3 V GPIO), power
+> the stack from the Pi's **3V3** pin — that keeps `VCC` and the SPI / I²C
+> logic at the same level and matches the GPIO directly without a level
+> shifter.
+
+> ℹ️ The "RPi physical pin" column uses the 1–40 header numbering printed
+> on Raspberry Pi pinout cards. "BCM GPIO" is the numbering reported by
+> `pinout` and used in `/sys/class/gpio`. Both refer to the same physical
+> pad; pick whichever is more convenient.
+
+When more than one board is in the stack, the same signals propagate
+upwards through the stackable pin headers — only this single JST cable goes
+to the Pi.
+
 ## Software
 
 A reference reader is provided in [`software/read.py`](software/read.py).
